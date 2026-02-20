@@ -1,0 +1,42 @@
+---
+- name: Ensure ~/bin exists for micromamba
+  become: false
+  file:
+    path: "{{ ansible_user_dir }}/bin"
+    state: directory
+    mode: "0755"
+
+- name: Download and install micromamba binary (idempotent)
+  become: false
+  shell: |
+    set -e
+    mkdir -p "{{ ansible_user_dir }}/bin"
+    curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest \
+      | tar -xj -C "{{ ansible_user_dir }}/bin" --strip-components=1 bin/micromamba
+  args:
+    creates: "{{ mamba_bin }}"
+
+- name: Ensure MAMBA_ROOT_PREFIX is exported in .bashrc
+  become: false
+  lineinfile:
+    path: "{{ ansible_user_dir }}/.bashrc"
+    line: 'export MAMBA_ROOT_PREFIX="{{ mamba_root_prefix }}"'
+    state: present
+    insertafter: EOF
+
+- name: Ensure micromamba shell hook is in .bashrc
+  become: false
+  lineinfile:
+    path: "{{ ansible_user_dir }}/.bashrc"
+    line: 'eval "$({{ mamba_bin }} shell hook -s bash)"'
+    state: present
+    insertafter: EOF
+
+- name: Create micromamba environment (if not exists)
+  become: false
+  shell: |
+    set -e
+    export MAMBA_ROOT_PREFIX="{{ mamba_root_prefix }}"
+    "{{ mamba_bin }}" create -y -n "{{ mamba_env_name }}" "python={{ mamba_python_version }}"
+  args:
+    creates: "{{ mamba_root_prefix }}/envs/{{ mamba_env_name }}"

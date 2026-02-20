@@ -1,0 +1,25 @@
+---
+- name: Prepare node for predictive-k8s-autoscaling
+  hosts: all
+  gather_facts: true
+  become: false
+  vars:
+    system_packages:
+      - git
+      - tmux
+      - htop
+      - aria2
+      - tree
+      - mergerfs
+      - ubuntu-drivers-common
+  roles:
+    - role: node_setup
+    - role: micromamba
+    - role: project_setup
+
+  tasks:
+    - name: Reboot at end if NVIDIA driver install changed anything
+      become: true
+      reboot:
+        reboot_timeout: 1800
+      when: ubuntu_drivers_autoinstall is changed

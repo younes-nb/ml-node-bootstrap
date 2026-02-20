@@ -1,0 +1,34 @@
+---
+- name: Clone repo
+  become: false
+  git:
+    repo: "{{ project_repo_url }}"
+    dest: "{{ project_root }}"
+    version: main
+    update: yes
+
+- name: Install Python dependencies with pip in micromamba env
+  become: false
+  shell: |
+    set -e
+    export MAMBA_ROOT_PREFIX="{{ mamba_root_prefix }}"
+    ENV_PY="{{ mamba_root_prefix }}/envs/{{ mamba_env_name }}/bin/python"
+    "$ENV_PY" -m pip install --upgrade pip
+    "$ENV_PY" -m pip install -r requirements.txt
+  args:
+    chdir: "{{ project_root }}"
+    
+- name: Old GPU compatibility - force torch cu118 + numpy<2
+  become: false
+  tags: [old_gpu]
+  when: old_gpu | default(false)
+  shell: |
+    set -e
+    export MAMBA_ROOT_PREFIX="{{ mamba_root_prefix }}"
+    ENV_PY="{{ mamba_root_prefix }}/envs/{{ mamba_env_name }}/bin/python"
+
+    "$ENV_PY" -m pip uninstall -y torch torchvision torchaudio || true
+    "$ENV_PY" -m pip install --no-cache-dir "torch==2.2.2+cu118" --index-url https://download.pytorch.org/whl/cu118
+    "$ENV_PY" -m pip install --no-cache-dir "numpy==1.26.4" --force-reinstall
+  args:
+    chdir: "{{ project_root }}"

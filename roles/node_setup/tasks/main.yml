@@ -1,0 +1,81 @@
+---
+- name: Update apt cache and install base packages
+  become: true
+  apt:
+    update_cache: yes
+    name: "{{ system_packages }}"
+    state: present
+
+- name: Auto-install NVIDIA driver
+  become: true
+  command: ubuntu-drivers autoinstall
+  register: ubuntu_drivers_autoinstall
+  changed_when: "'No drivers found' not in ubuntu_drivers_autoinstall.stdout"
+
+- name: Ensure fuse allows 'allow_other'
+  become: true
+  lineinfile:
+    path: /etc/fuse.conf
+    line: "user_allow_other"
+    state: present
+    create: yes
+
+- name: Dataset and mergerfs setup
+  block:
+
+    - name: Initialize dataset_paths
+      set_fact:
+        dataset_paths: []
+
+    - name: Append dataset paths 1..N
+      when: (num_datasets | int) > 0
+      set_fact:
+        dataset_paths: "{{ dataset_paths + ['/dataset' + item] }}"
+      loop: "{{ query('sequence', 'start=1 end=' + (num_datasets | string)) }}"
+
+    - name: Debug dataset_paths (optional)
+      debug:
+        var: dataset_paths
+
+    - name: Ensure datasetN directories exist and owned by user
+      become: true
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ ansible_user_id }}"
+        mode: "0755"
+      loop: "{{ dataset_paths }}"
+
+    - name: Ensure unified dataset root directory exists
+      become: true
+      file:
+        path: "{{ dataset_root }}"
+        state: directory
+        owner: "{{ ansible_user_id }}"
+        mode: "0755"
+
+    - name: Build mergerfs source string
+      set_fact:
+        mergerfs_sources: "{{ dataset_paths | join(':') }}"
+
+    - name: Configure mergerfs mount in /etc/fstab
+      become: true
+      lineinfile:
+        path: /etc/fstab
+        state: present
+        line: >-
+          {{ mergerfs_sources }}  {{ dataset_root }}
+          fuse.mergerfs
+          defaults,allow_other,use_ino,category.create=ff,moveonenospc=true
+          0 0
+
+    - name: Ensure mergerfs mount is active
+      become: true
+      mount:
+        path: "{{ dataset_root }}"
+        src: "{{ mergerfs_sources }}"
+        fstype: "fuse.mergerfs"
+        opts: "defaults,allow_other,use_ino,category.create=ff,moveonenospc=true"
+        state: mounted
+
+  when: not (skip_dataset_setup | default(false))
