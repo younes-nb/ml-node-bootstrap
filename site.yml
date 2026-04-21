@@ -10,7 +10,6 @@
       - htop
       - aria2
       - tree
-      - mergerfs
       - ubuntu-drivers-common
   roles:
     - role: node_setup
