@@ -11,3 +11,19 @@
   command: ubuntu-drivers autoinstall
   register: ubuntu_drivers_autoinstall
   changed_when: "'No drivers found' not in ubuntu_drivers_autoinstall.stdout"
+
+- name: Ensure fuse allows 'allow_other'
+  become: true
+  lineinfile:
+    path: /etc/fuse.conf
+    line: "user_allow_other"
+    state: present
+    create: yes
+
+- name: Ensure unified dataset root directory exists
+  become: true
+  file:
+    path: "{{ dataset_root }}"
+    state: directory
+    owner: "{{ ansible_user_id }}"
+    mode: "0755"
