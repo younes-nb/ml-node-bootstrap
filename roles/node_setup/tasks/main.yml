@@ -6,24 +6,26 @@
     name: "{{ system_packages }}"
     state: present
 
-- name: Auto-install NVIDIA driver
+- name: Add NVIDIA graphics drivers PPA
+  become: true
+  ansible.builtin.apt_repository:
+    repo: ppa:graphics-drivers/ppa
+    state: present
+    update_cache: yes
+
+- name: Auto-install newest recommended NVIDIA driver
   become: true
   command: ubuntu-drivers autoinstall
-  register: ubuntu_drivers_autoinstall
-  changed_when: "'No drivers found' not in ubuntu_drivers_autoinstall.stdout"
+  register: driver_install
+  changed_when: 
+    - "'already installed' not in driver_install.stdout"
+    - "'No drivers found' not in driver_install.stdout"
 
-- name: Ensure fuse allows 'allow_other'
-  become: true
-  lineinfile:
-    path: /etc/fuse.conf
-    line: "user_allow_other"
-    state: present
-    create: yes
-
-- name: Ensure unified dataset root directory exists
+- name: Ensure /dataset is owned by the current user and their primary group
   become: true
   file:
-    path: "{{ dataset_root }}"
+    path: /dataset
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user_gid }}"
+    recurse: yes
     state: directory
-    owner: "{{ ansible_user_id }}"
-    mode: "0755"
