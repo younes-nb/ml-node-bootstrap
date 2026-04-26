@@ -13,11 +13,20 @@
     state: present
     update_cache: yes
 
-- name: Auto-install newest recommended NVIDIA driver
+- name: Determine the highest available NVIDIA driver version
   become: true
-  command: ubuntu-drivers autoinstall
+  shell: "ubuntu-drivers devices | grep -oP 'nvidia-driver-\\d+' | sort -rV | head
+    -n 1"
+  register: latest_driver
+  changed_when: false
+
+- name: Explicitly install the highest NVIDIA driver
+  become: true
+  apt:
+    name: "{{ latest_driver.stdout }}"
+    state: present
   register: driver_install
-  changed_when: 
+  changed_when:
     - "'already installed' not in driver_install.stdout"
     - "'No drivers found' not in driver_install.stdout"
 
