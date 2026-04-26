@@ -21,4 +21,6 @@
       become: true
       reboot:
         reboot_timeout: 1800
-      when: ubuntu_drivers_autoinstall is changed
+      when: 
+        - driver_install is defined
+        - driver_install is changed

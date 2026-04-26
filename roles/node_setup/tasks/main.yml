@@ -25,7 +25,7 @@
   become: true
   file:
     path: /dataset
-    owner: "{{ ansible_user }}"
+    owner: "{{ ansible_user_id }}"
     group: "{{ ansible_user_gid }}"
     recurse: yes
     state: directory
