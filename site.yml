@@ -22,5 +22,6 @@
       reboot:
         reboot_timeout: 1800
       when: 
+        - install_nvidia | default(true) | bool
         - driver_install is defined
         - driver_install is changed

@@ -1,0 +1,14 @@
+---
+- name: "Switching to mirror: {{ current_mirror }}"
+  become: true
+  ansible.builtin.replace:
+    path: /etc/apt/sources.list
+    regexp: 'http://[a-z0-9.-]*\.?ubuntu\.com/ubuntu/'
+    replace: "http://{{ current_mirror }}/"
+
+- name: Attempt apt cache update
+  become: true
+  apt:
+    update_cache: yes
+  register: apt_update_result
+  ignore_errors: true
