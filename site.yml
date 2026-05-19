@@ -7,10 +7,10 @@
     system_packages:
       - git
       - tmux
-      - htop
       - aria2
       - tree
       - ubuntu-drivers-common
+      - btop
   roles:
     - role: node_setup
     - role: micromamba
