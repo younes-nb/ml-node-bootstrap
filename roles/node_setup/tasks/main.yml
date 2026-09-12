@@ -1,19 +1,46 @@
 ---
-- name: Try mirrors until apt update succeeds
-  include_tasks: try_mirror.yml
-  loop: "{{ ubuntu_mirrors }}"
-  loop_control:
-    loop_var: current_mirror
-  when: 
-    - not (skip_apt_update | default(false) | bool)
-    - apt_update_result is not defined or apt_update_result.failed
-
 - name: Install base packages
   become: true
   apt:
     name: "{{ system_packages }}"
     state: present
-    update_cache: no
+    update_cache: "{{ not (skip_apt_update | default(false) | bool) }}"
+
+- name: Get current git global user.name
+  become: false
+  ansible.builtin.command:
+    cmd: git config --global --get user.name
+  register: current_git_user_name
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: git_user_name is defined and (git_user_name | length > 0)
+
+- name: Configure git global user.name
+  become: false
+  ansible.builtin.command:
+    cmd: git config --global user.name "{{ git_user_name }}"
+  when:
+    - git_user_name is defined and (git_user_name | length > 0)
+    - current_git_user_name.stdout | default('') | trim != (git_user_name | trim)
+
+- name: Get current git global user.email
+  become: false
+  ansible.builtin.command:
+    cmd: git config --global --get user.email
+  register: current_git_user_email
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: git_user_email is defined and (git_user_email | length > 0)
+
+- name: Configure git global user.email
+  become: false
+  ansible.builtin.command:
+    cmd: git config --global user.email "{{ git_user_email }}"
+  when:
+    - git_user_email is defined and (git_user_email | length > 0)
+    - current_git_user_email.stdout | default('') | trim != (git_user_email | trim)
 
 - name: Add NVIDIA graphics drivers PPA
   become: true
@@ -23,25 +50,63 @@
     update_cache: "{{ not (skip_apt_update | default(false) | bool) }}"
   when: install_nvidia | default(true) | bool
 
-- name: Determine the highest available NVIDIA driver version
+- name: Determine the highest NVIDIA server driver version (fallback to base)
   become: true
-  shell: "ubuntu-drivers devices | grep -oP 'nvidia-driver-\\d+' | sort -rV | head -n 1"
-  register: latest_driver
+  shell: |
+    server=$(ubuntu-drivers devices | grep -oP 'nvidia-driver-\d+-server' | sort -rV | head -n 1)
+    if [ -n "$server" ]; then
+      echo "$server"
+    else
+      ubuntu-drivers devices | grep -oP 'nvidia-driver-\d+' | sort -rV | head -n 1
+    fi
+  register: highest_driver
   changed_when: false
+  failed_when: false
+  check_mode: false
   when: install_nvidia | default(true) | bool
 
-- name: Explicitly install the highest NVIDIA driver
+- name: Fail when no NVIDIA driver candidate was detected
+  ansible.builtin.assert:
+    that:
+      - highest_driver.stdout | default('') | trim != ""
+    fail_msg: >-
+      No NVIDIA driver packages found via 'ubuntu-drivers devices'.
+      The host may have no NVIDIA GPU, or the apt cache may be stale
+      (retry without skip_apt_update). Skip GPU setup with
+      -e install_nvidia=false.
+  when: install_nvidia | default(true) | bool
+
+- name: Explicitly install the highest NVIDIA server driver
   become: true
   apt:
-    name: "{{ latest_driver.stdout }}"
+    name: "{{ highest_driver.stdout | trim }}"
     state: present
   register: driver_install
-  changed_when:
-    - "'already installed' not in driver_install.stdout"
-    - "'No drivers found' not in driver_install.stdout"
   when: install_nvidia | default(true) | bool
 
-- name: Ensure /dataset is owned by the current user and their primary group
+- name: Install CUDA toolkit supporting the installed driver
+  become: true
+  apt:
+    name: nvidia-cuda-toolkit
+    state: present
+  register: cuda_install
+  when: install_nvidia | default(true) | bool
+
+- name: Ensure /dataset exists
+  become: true
+  file:
+    path: /dataset
+    state: directory
+    mode: "0755"
+
+- name: Check /dataset ownership
+  become: true
+  ansible.builtin.stat:
+    path: /dataset
+  register: dataset_stat
+  changed_when: false
+
+- name: Fix /dataset ownership recursively when it drifted
   become: true
   file:
     path: /dataset
@@ -49,3 +114,13 @@
     group: "{{ ansible_user_gid }}"
     recurse: yes
     state: directory
+  when: >
+    dataset_stat.stat.pw_name | default('') != ansible_user_id or
+    dataset_stat.stat.gid | default(-1) | int != ansible_user_gid | int
+
+- name: Install opencode
+  become: false
+  shell: curl -fsSL https://opencode.ai/install | bash
+  args:
+    creates: "{{ ansible_user_dir }}/.opencode/bin/opencode"
+    executable: /bin/bash

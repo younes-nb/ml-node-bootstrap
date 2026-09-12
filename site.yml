@@ -6,9 +6,11 @@
   vars:
     system_packages:
       - git
+      - curl
       - tmux
       - aria2
       - tree
+      - software-properties-common
       - ubuntu-drivers-common
       - btop
   roles:
@@ -17,11 +19,28 @@
     - role: project_setup
 
   tasks:
-    - name: Reboot at end if NVIDIA driver install changed anything
+    - name: Reboot at end if NVIDIA driver or CUDA install changed anything
       become: true
       reboot:
         reboot_timeout: 1800
-      when: 
+      when:
         - install_nvidia | default(true) | bool
-        - driver_install is defined
-        - driver_install is changed
+        - (driver_install is defined and driver_install is changed) or (cuda_install is defined and cuda_install is changed)
+
+    - name: Verify NVIDIA driver is loaded after reboot
+      become: false
+      ansible.builtin.command:
+        cmd: nvidia-smi
+      changed_when: false
+      when:
+        - install_nvidia | default(true) | bool
+        - not ansible_check_mode
+
+    - name: Verify CUDA compiler is available
+      become: false
+      ansible.builtin.command:
+        cmd: nvcc --version
+      changed_when: false
+      when:
+        - install_nvidia | default(true) | bool
+        - not ansible_check_mode

@@ -9,9 +9,9 @@
 - name: Download and install micromamba binary (idempotent)
   become: false
   shell: |
-    set -e
+    set -eo pipefail
     mkdir -p "{{ ansible_user_dir }}/bin"
-    curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest \
+    curl -fLsS https://micro.mamba.pm/api/micromamba/linux-64/latest \
       | tar -xj -C "{{ ansible_user_dir }}/bin" --strip-components=1 bin/micromamba
   args:
     creates: "{{ mamba_bin }}"
