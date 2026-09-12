@@ -23,6 +23,7 @@
       become: true
       reboot:
         reboot_timeout: 1800
+      register: gpu_reboot
       when:
         - install_nvidia | default(true) | bool
         - (driver_install is defined and driver_install is changed) or (cuda_install is defined and cuda_install is changed)
@@ -33,7 +34,7 @@
         cmd: nvidia-smi
       changed_when: false
       when:
-        - install_nvidia | default(true) | bool
+        - gpu_reboot is defined and gpu_reboot is changed
         - not ansible_check_mode
 
     - name: Verify CUDA compiler is available
@@ -42,5 +43,5 @@
         cmd: nvcc --version
       changed_when: false
       when:
-        - install_nvidia | default(true) | bool
+        - gpu_reboot is defined and gpu_reboot is changed
         - not ansible_check_mode

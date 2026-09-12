@@ -15,6 +15,7 @@
       | tar -xj -C "{{ ansible_user_dir }}/bin" --strip-components=1 bin/micromamba
   args:
     creates: "{{ mamba_bin }}"
+    executable: /bin/bash
 
 - name: Ensure MAMBA_ROOT_PREFIX is exported in .bashrc
   become: false
