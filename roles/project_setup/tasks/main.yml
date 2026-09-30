@@ -19,3 +19,58 @@
   ansible.builtin.pip:
     requirements: "{{ project_root }}/requirements.txt"
     executable: "{{ mamba_root_prefix }}/envs/{{ mamba_env_name }}/bin/pip"
+
+- name: Install FreeLLMAPI (requires Docker and OpenCode)
+  become: false
+  ansible.builtin.shell: |
+    curl -fsSL https://freellmapi.co/install.sh | bash
+  args:
+    creates: "{{ ansible_user_dir }}/.freellmapi"
+    executable: /bin/bash
+  when: install_freellmapi | default(true) | bool
+
+- name: Ensure opencode config directory exists
+  become: false
+  file:
+    path: "{{ ansible_user_dir }}/.config/opencode"
+    state: directory
+    mode: "0755"
+  when: install_freellmapi | default(true) | bool
+
+- name: Configure OpenCode for FreeLLMAPI
+  become: false
+  copy:
+    dest: "{{ ansible_user_dir }}/.config/opencode/opencode.jsonc"
+    content: |
+      {
+        "$schema": "https://opencode.ai/config.json",
+        "model": "freellmapi/auto",
+        "provider": {
+          "freellmapi": {
+            "npm": "@ai-sdk/openai-compatible",
+            "name": "FreeLLMAPI",
+            "options": {
+              "baseURL": "http://127.0.0.1:3001/v1",
+              "apiKey": "{{ freellmapi_api_key | default('') }}"
+            },
+            "models": {
+              "auto": {
+                "name": "FreeLLMAPI Auto",
+                "limit": {
+                  "context": 1048576,
+                  "output": 8192
+                }
+              },
+              "fusion": {
+                "name": "Fusion (panel of models answer in parallel, a judge synthesizes one answer)",
+                "limit": {
+                  "context": 1048576,
+                  "output": 8192
+                }
+              }
+            }
+          }
+        }
+      }
+    mode: "0644"
+  when: install_freellmapi | default(true) | bool
