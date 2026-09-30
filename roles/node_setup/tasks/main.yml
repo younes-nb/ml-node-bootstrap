@@ -120,7 +120,7 @@
 
 - name: Install opencode
   become: false
-  shell: curl -fsSL https://opencode.ai/install | bash
+  shell: curl -fsSL https://opencode.ai/v2/install | bash
   args:
     creates: "{{ ansible_user_dir }}/.opencode/bin/opencode"
     executable: /bin/bash
